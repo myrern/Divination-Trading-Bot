@@ -17,7 +17,7 @@ class TradingBot:
         self.oanda_authorization = "Bearer 355e3f854bfe5cd14c1ae71e71cb723e-b1bdecc6d4a9ac5023b66104c9f48863"
         self.oanda_base_url = "https://api-fxpractice.oanda.com/v3/"
 
-        self.run_bot()
+        self.run_bot()        
 
     
     def run_bot(self):
@@ -210,20 +210,3 @@ class TradingBot:
         return granularity_to_seconds_dict[granularity]
 
 bot = TradingBot("ETH_USD", "M1", True, 5)
-    
-
-        
-
-
-
-    
-
-
-
-
-
-
-
-
-
-    
