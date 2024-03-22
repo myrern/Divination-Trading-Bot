@@ -1,12 +1,13 @@
 import requests
 import pandas as pd
 import logging
+from Trade import Trade
 
 class Oanda:
 
     def __init__(self, practice=True):
-        self.account_id = "101-004-25172303-001" if practice else "101-004-25172303-001"
-        self.oanda_authorization = f"Bearer 355e3f854bfe5cd14c1ae71e71cb723e-b1bdecc6d4a9ac5023b66104c9f48863" if practice else f"Bearer 355e3f854bfe5cd14c1ae71e71cb723e-b1bdecc6d4a9ac5023b66104c9f48863"
+        self.account_id = "101-004-18657494-001" if practice else "101-004-18657494-001"
+        self.oanda_authorization = f"Bearer 02791443d8f10d0841376bfcb384553a-060328043185e16039e68b0738b42a96" if practice else f"Bearer 02791443d8f10d0841376bfcb384553a-060328043185e16039e68b0738b42a96"
         self.oanda_base_url = "https://api-fxpractice.oanda.com/v3/" if practice else "https://api-fxtrade.oanda.com/v3/"
     
     def close_trade_fully(self, trade_id):
@@ -34,7 +35,7 @@ class Oanda:
                 logging.error(f"Error closing trade: {e}")
                 return pd.DataFrame(), 500
         
-        return response.status_code
+        return response.status_code, response.json()
     
     def long_asset(self, instrument, units):
         buy_order_url = f"{self.oanda_base_url}accounts/{self.account_id}/orders"
@@ -58,6 +59,9 @@ class Oanda:
                 headers=headers,
                 json=data,
             )
+
+            print(response.json())
+
         except Exception as e:
             # check status code
             status_code = response.status_code
@@ -71,7 +75,18 @@ class Oanda:
                 logging.error(f"Error buying asset: {e}")
                 return pd.DataFrame(), 500
         
-        return response.status_code
+        if response.status_code != 201:
+            logging.error(f"Error buying asset: {response.json()}")
+            return pd.DataFrame(), response.status_code
+        response = response.json()
+        trade_opened = response["201"]["orderFillTransaction"]["tradeOpened"]
+        trade_id = trade_opened["tradeID"]
+        price = trade_opened["price"]
+        actual_units = trade_opened["units"]
+
+        trade = Trade(trade_id, price, actual_units, instrument, "long")
+        print("Trade: ", trade.__dict__)
+        return response.status_code, trade
     
     def short_asset(self, instrument, units):
         short_order_url = f"{self.oanda_base_url}accounts/{self.account_id}/orders"
@@ -108,7 +123,7 @@ class Oanda:
                 logging.error(f"Error shorting asset: {e}")
                 return pd.DataFrame(), 500
         
-        return response.status_code
+        return response.status_code, response.json()
 
     def get_candles(self, instrument, granularity, count):
         candles_url = f"{self.oanda_base_url}instruments/{instrument}/candles"

@@ -4,7 +4,10 @@ import pandas as pd
 import time
 from datetime import datetime
 from datetime import timezone
+from Strategies import Strategies
+from Oanda import Oanda
 
+logging.basicConfig(level=logging.INFO)
 
 class TradingBot: 
     def __init__(self, instrument, granularity, practice, count):
@@ -12,10 +15,13 @@ class TradingBot:
         self.granularity = granularity
         self.practice = practice
         self.count = count
+        self.strategies = Strategies()
+        self.oanda = Oanda(practice)
 
         self.account_id = "101-004-25172303-001"
         self.oanda_authorization = "Bearer 355e3f854bfe5cd14c1ae71e71cb723e-b1bdecc6d4a9ac5023b66104c9f48863"
         self.oanda_base_url = "https://api-fxpractice.oanda.com/v3/"
+        self.strategies_list = [{"strategy_name": "IBS", "current_position": 0, "asset": "JP225_USD", "units": 1, "last_trade" : None , "ibs_low_threshold": 0.2, "ibs_high_threshold": 0.8}]
 
         self.run_bot()        
 
@@ -24,6 +30,8 @@ class TradingBot:
         while True:
             print("Fetching latest candle...")
             candles, status_code = self.get_candles(self.instrument, self.granularity, self.count)
+            #print(candles.info())
+            print(candles.tail())
             if status_code != 200 or candles.empty:
                 logging.error(f"Error getting candles: {status_code}")
                 time.sleep(60)  # Wait a minute before retrying
@@ -38,42 +46,61 @@ class TradingBot:
             start_check_time = datetime.now(timezone.utc)
             while (datetime.now(timezone.utc) - start_check_time).total_seconds() <= 30:
                 print("Checking for new candle now...")
-                last_complete_candle, status_code = self.get_last_complete_candle(self.instrument, self.granularity)
+                last_complete_candle, status_code = self.get_candles(self.instrument, self.granularity, 1)
                 if status_code != 200 or last_complete_candle.empty:
                     time.sleep(1)  
                     continue
 
-                new_candle_time = pd.to_datetime(last_complete_candle.name)
+                new_candle_time = pd.to_datetime(last_complete_candle.index)
                 if new_candle_time != pd.to_datetime(last_candle_time):
-                    closing_price = last_complete_candle['mid_c']  # Assuming you're interested in the mid closing price
+                    closing_price = last_complete_candle[
+                        'mid_c']  # Assuming you're interested in the mid closing price
                     print(f"New candle detected at {new_candle_time}! Closing Price: {closing_price}")
+                    #print(last_complete_candle)
+                    candles = candles._append(last_complete_candle, ignore_index=False)
+                    # check for trade
+                    self.check_for_trade(candles)
                     # Process the new candle here (if any processing or decision-making is required)
                     break  # Exit the inner loop since a new candle is detected
 
             print("Processing complete. Waiting for next cycle...")
             # After processing the new candle, the outer loop continues, fetching the next set of candles after a wait.
+    
+    def check_for_trade(self, candles):
+        # Implement your trade logic here
+        for strategy in self.strategies_list:
+            signal = self.strategies.get_signal(strategy, candles)
+            last_trade = strategy["last_trade"]
+            if signal == 1:
+                self.go_long(strategy)
+                print(f"Going long on {strategy['asset']}")
+                strategy["current_position"] = 1
+            elif signal == -1:
+                self.go_short(strategy)
+                print(f"Going short on {strategy['asset']}")
+                strategy["current_position"] = -1
+            elif signal == 0:
+                self.go_netrual(strategy)
+                print(f"Closing trade on {strategy['asset']}")
+                strategy["current_position"] = 0
+            else:
+                print(f"No trade signal for {strategy['asset']}")
+                continue
 
+    def go_long(self, strategy):
+        instrument = strategy["asset"]
+        units = strategy["units"]
+        status_code, trade = self.oanda.long_asset(instrument, units)
+        strategy["last_trade"] = trade
 
+    def go_short(self, strategy):
+        instrument = strategy["asset"]
+        units = strategy["units"]
+        self.oanda.short_asset(instrument, units)
 
-
-    # def ref_run_bot(self):
-    #     candles = self.get_candles(self.instrument, self.granularity, 5)
-    #     last_candle = candles["candles"][-1].time
-        
-    #     wait_time = calculate_wait_time(last_candle)
-
-    #     while True:
-    #         time.sleep(wait_time)
-    #         while True:
-    #             last_complete_candle = self.get_candle()
-    #             if last_complete_candle.time != last_candle:
-    #                 # check for trade
-    #                 #trade if trade
-    #                 wait_time = calculate_wait_time(last_complete_candle)
-    #                 break
-    #             else:
-    #                 pass
-
+    def go_netrual(self, strategy):
+        trade_id = strategy["last_trade"]
+        self.oanda.close_trade_fully(trade_id)
 
     def calculate_wait_time(self, last_candle, start_candle_fetch=2):
         last_candle_time = pd.to_datetime(last_candle)
@@ -154,18 +181,18 @@ class TradingBot:
             temp_candle_dict = {
                 "time": candle["time"],
                 "volume": candle["volume"],
-                "bid_o": candle["bid"]["o"],
-                "bid_h": candle["bid"]["h"],
-                "bid_l": candle["bid"]["l"],
-                "bid_c": candle["bid"]["c"],
-                "ask_o": candle["ask"]["o"],
-                "ask_h": candle["ask"]["h"],
-                "ask_l": candle["ask"]["l"],
-                "ask_c": candle["ask"]["c"],
-                "mid_o": candle["mid"]["o"],
-                "mid_h": candle["mid"]["h"],
-                "mid_l": candle["mid"]["l"],
-                "mid_c": candle["mid"]["c"],
+                "bid_o": pd.to_numeric(candle["bid"]["o"]),
+                "bid_h": pd.to_numeric(candle["bid"]["h"]),
+                "bid_l": pd.to_numeric(candle["bid"]["l"]),
+                "bid_c": pd.to_numeric(candle["bid"]["c"]),
+                "ask_o": pd.to_numeric(candle["ask"]["o"]),
+                "ask_h": pd.to_numeric(candle["ask"]["h"]),
+                "ask_l": pd.to_numeric(candle["ask"]["l"]),
+                "ask_c": pd.to_numeric(candle["ask"]["c"]),
+                "mid_o": pd.to_numeric(candle["mid"]["o"]),
+                "mid_h": pd.to_numeric(candle["mid"]["h"]),
+                "mid_l": pd.to_numeric(candle["mid"]["l"]),
+                "mid_c": pd.to_numeric(candle["mid"]["c"]),
             }
 
             candle_data.append(temp_candle_dict)
@@ -209,4 +236,4 @@ class TradingBot:
         }
         return granularity_to_seconds_dict[granularity]
 
-bot = TradingBot("ETH_USD", "M1", True, 5)
+bot = TradingBot("JP225_USD", "M1", True, 5)
