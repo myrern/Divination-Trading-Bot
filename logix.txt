@@ -1,0 +1,17 @@
+   # def ref_run_bot(self):
+    #     candles = self.get_candles(self.instrument, self.granularity, 5)
+    #     last_candle = candles["candles"][-1].time
+        
+    #     wait_time = calculate_wait_time(last_candle)
+
+    #     while True:
+    #         time.sleep(wait_time)
+    #         while True:
+    #             last_complete_candle = self.get_candle()
+    #             if last_complete_candle.time != last_candle:
+    #                 # check for trade
+    #                 #trade if trade
+    #                 wait_time = calculate_wait_time(last_complete_candle)
+    #                 break
+    #             else:
+    #                 pass
