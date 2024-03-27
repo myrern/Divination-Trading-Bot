@@ -2,6 +2,7 @@ import logging
 
 import pandas as pd
 import requests
+import time
 
 from Trade import Trade
 
@@ -20,6 +21,31 @@ class Oanda:
             if practice
             else "https://api-fxtrade.oanda.com/v3/"
         )
+
+    def get_account_details(self):
+        account_url = f"{self.oanda_base_url}accounts/{self.account_id}"
+        headers = {"Authorization": self.oanda_authorization}
+
+        try:
+            response = requests.get(account_url, headers=headers)
+        except Exception as e:
+            logging.error(f"Error getting account details: {e}")
+            return None, 500
+
+        return response.json(), 200
+    
+    def get_open_trades(self):
+        trades_url = f"{self.oanda_base_url}accounts/{self.account_id}/openTrades"
+        headers = {"Authorization": self.oanda_authorization}
+
+        try:
+            response = requests.get(trades_url, headers=headers)
+        except Exception as e:
+            logging.error(f"Error getting open trades: {e}")
+            return None, 500
+
+        return response.json(), 200
+
 
     def close_trade_fully(self, last_trade):
         trade_id = last_trade.trade_id
@@ -103,31 +129,31 @@ class Oanda:
             if status_code == 400:
                 print(f"Order specification was invalid: {response.json()}")
                 print("----------------------------------------")
-                return pd.DataFrame(), 400
+                return 400, None
             elif status_code == 404:
                 print(f"Order specification does not exist: {response.json()}")
                 print("----------------------------------------")
-                return pd.DataFrame(), 404
+                return 404, None
             elif status_code == 401:
                 print(f"Unauthorized: {response.json()}")
                 print("----------------------------------------")
-                return pd.DataFrame(), 401
+                return 401, None
             elif status_code == 403:
                 print(f"Forbidden: {response.json()}")
                 print("----------------------------------------")
-                return pd.DataFrame(), 403
+                return 403, None
             elif status_code == 405:
                 print(f"Method not allowed: {response.json()}")
                 print("----------------------------------------")
-                return pd.DataFrame(), 405
+                return 405, None
             else:
                 print(f"Error buying asset: {e}")
                 print("----------------------------------------")
-                return pd.DataFrame(), 500
+                return 500, None
 
         if response.status_code != 201:
             print(f"Error buying asset: {response.json()}")
-            return pd.DataFrame(), response.status_code
+            return response.status_code, None
 
         response = response.json()
 
@@ -144,7 +170,9 @@ class Oanda:
             print("----------------------------------------")
             return 201, trade
         else:
-            while True:
+            tries = 0
+            while tries < 10:
+                print("Waiting for order to fill...")
                 orderCreateTransaction = response["orderCreateTransaction"]
                 id = orderCreateTransaction["id"]
                 # get order
@@ -157,6 +185,9 @@ class Oanda:
                     trade = Trade(
                         transaction_id, trade_opened, price, units, instrument, "long"
                     )
+                    return 201, trade
+                tries += 1
+                time.sleep(1)
 
     def short_asset(self, instrument, units):
         short_order_url = f"{self.oanda_base_url}accounts/{self.account_id}/orders"
@@ -243,24 +274,24 @@ class Oanda:
             ).json()["candles"]
         except Exception as e:
             logging.error(f"Error getting candles: {e}")
-            return pd.DataFrame(), 500
+            return pd.DataFrame()
 
         for candle in candles:
             temp_candle_dict = {
                 "time": candle["time"],
                 "volume": candle["volume"],
-                "bid_o": candle["bid"]["o"],
-                "bid_h": candle["bid"]["h"],
-                "bid_l": candle["bid"]["l"],
-                "bid_c": candle["bid"]["c"],
-                "ask_o": candle["ask"]["o"],
-                "ask_h": candle["ask"]["h"],
-                "ask_l": candle["ask"]["l"],
-                "ask_c": candle["ask"]["c"],
-                "mid_o": candle["mid"]["o"],
-                "mid_h": candle["mid"]["h"],
-                "mid_l": candle["mid"]["l"],
-                "mid_c": candle["mid"]["c"],
+                "bid_o": pd.to_numeric(candle["bid"]["o"]),
+                "bid_h": pd.to_numeric(candle["bid"]["h"]),
+                "bid_l": pd.to_numeric(candle["bid"]["l"]),
+                "bid_c": pd.to_numeric(candle["bid"]["c"]),
+                "ask_o": pd.to_numeric(candle["ask"]["o"]),
+                "ask_h": pd.to_numeric(candle["ask"]["h"]),
+                "ask_l": pd.to_numeric(candle["ask"]["l"]),
+                "ask_c": pd.to_numeric(candle["ask"]["c"]),
+                "mid_o": pd.to_numeric(candle["mid"]["o"]),
+                "mid_h": pd.to_numeric(candle["mid"]["h"]),
+                "mid_l": pd.to_numeric(candle["mid"]["l"]),
+                "mid_c": pd.to_numeric(candle["mid"]["c"]),
             }
 
             candle_data.append(temp_candle_dict)
@@ -268,4 +299,4 @@ class Oanda:
         candle_df = pd.DataFrame(candle_data, columns=candle_df_columns)
         candle_df.set_index("time", inplace=True)
 
-        return candle_df, 200
+        return candle_df

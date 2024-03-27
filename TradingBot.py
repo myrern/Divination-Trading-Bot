@@ -1,12 +1,10 @@
 import logging
 import time
 from datetime import datetime, timezone
-
 import pandas as pd
-import requests
-
 from Oanda import Oanda
 from Strategies import Strategies
+from Trade import Trade
 
 logging.basicConfig(level=logging.INFO)
 
@@ -48,6 +46,8 @@ class TradingBot:
         current_strategy = self.strategies_list[0]
         self.instrument = current_strategy["asset"]
         self.granularity = current_strategy["granularity"]
+
+        self.check_for_open_trades(current_strategy)
 
         while True:
             print("Fetching latest candle...")
@@ -101,13 +101,10 @@ class TradingBot:
             last_trade = strategy["last_trade"]
             if signal == 1:
                 self.go_long(strategy)
-                strategy["current_position"] = 1
             elif signal == -1:
                 self.go_short(strategy)
-                strategy["current_position"] = -1
             elif signal == 0:
                 self.go_netrual(strategy)
-                strategy["current_position"] = 0
             else:
                 print(f"No trade signal for {strategy['asset']}")
                 continue
@@ -116,18 +113,50 @@ class TradingBot:
         instrument = strategy["asset"]
         units = strategy["units"]
         status_code, trade = self.oanda.long_asset(instrument, units)
+        strategy["current_position"] = 1
         strategy["last_trade"] = trade
 
     def go_short(self, strategy):
         instrument = strategy["asset"]
         units = strategy["units"]
         self.oanda.short_asset(instrument, units)
+        strategy["current_position"] = -1
 
     def go_netrual(self, strategy):
         last_trade = strategy["last_trade"]
         status_code, trade = self.oanda.close_trade_fully(last_trade)
+        strategy["current_position"] = 0
         strategy["last_trade"] = trade
         strategy["trade_history"].append(trade)
+
+    def check_for_open_trades(self, strategy):
+        print("-----------------------------")
+        print("Checking for open trades...")
+        response, status_code = self.oanda.get_open_trades()  # Unpack the tuple into response and status_code
+        if status_code == 200:  # Check if the request was successful
+            open_trades = response["trades"]  # Access 'trades' from the response dictionary
+            for trade in open_trades:
+                current_units = float(trade["currentUnits"])  # Convert currentUnits to float
+                if trade["instrument"] == strategy["asset"]:
+                    strategy["current_position"] = 1 if current_units > 0 else -1
+                    strategy["last_trade"] = Trade(
+                        trade["id"],
+                        trade["price"],
+                        current_units,
+                        trade["instrument"],
+                        "long" if current_units > 0 else "short",
+                    )
+                    
+                    print(f"Found open trade: {strategy['last_trade'].to_string_opened()}")
+                    print("-----------------------------")
+                    return
+            print("No open trades found.")
+            print("-----------------------------")
+        else:
+            
+            print(f"Failed to get open trades, status code: {status_code}")
+            print("-----------------------------")
+
 
     def calculate_wait_time(self, last_candle, start_candle_fetch=2):
         last_candle_time = pd.to_datetime(last_candle)
@@ -167,66 +196,10 @@ class TradingBot:
         return granularity_to_seconds_dict[granularity]
 
     def get_candles(self, instrument, granularity, count):
-        candles_url = f"{self.oanda_base_url}instruments/{instrument}/candles"
-        headers = {"Authorization": self.oanda_authorization}
-        params = {
-            "granularity": granularity,
-            "count": count,
-            "price": "MBA",
-        }
+        candle_df = self.oanda.get_candles(instrument, granularity, count)
 
-        candle_df_columns = [
-            "time",
-            "volume",
-            "bid_o",
-            "bid_h",
-            "bid_l",
-            "bid_c",
-            "ask_o",
-            "ask_h",
-            "ask_l",
-            "ask_c",
-            "mid_o",
-            "mid_h",
-            "mid_l",
-            "mid_c",
-        ]
-
-        candle_data = []
-
-        try:
-            candles = requests.get(
-                candles_url,
-                headers=headers,
-                params=params,
-            ).json()["candles"]
-        except Exception as e:
-            logging.error(f"Error getting candles: {e}")
-            return pd.DataFrame(), 500
-
-        for candle in candles:
-            temp_candle_dict = {
-                "time": candle["time"],
-                "volume": candle["volume"],
-                "bid_o": pd.to_numeric(candle["bid"]["o"]),
-                "bid_h": pd.to_numeric(candle["bid"]["h"]),
-                "bid_l": pd.to_numeric(candle["bid"]["l"]),
-                "bid_c": pd.to_numeric(candle["bid"]["c"]),
-                "ask_o": pd.to_numeric(candle["ask"]["o"]),
-                "ask_h": pd.to_numeric(candle["ask"]["h"]),
-                "ask_l": pd.to_numeric(candle["ask"]["l"]),
-                "ask_c": pd.to_numeric(candle["ask"]["c"]),
-                "mid_o": pd.to_numeric(candle["mid"]["o"]),
-                "mid_h": pd.to_numeric(candle["mid"]["h"]),
-                "mid_l": pd.to_numeric(candle["mid"]["l"]),
-                "mid_c": pd.to_numeric(candle["mid"]["c"]),
-            }
-
-            candle_data.append(temp_candle_dict)
-
-        candle_df = pd.DataFrame(candle_data, columns=candle_df_columns)
-        candle_df.set_index("time", inplace=True)
-
+        if candle_df.empty:
+            return pd.DataFrame(), 404
         return candle_df, 200
 
     def get_last_complete_candle(self, instrument, granularity):
@@ -235,33 +208,6 @@ class TradingBot:
             return pd.DataFrame(), status_code
         else:
             return candle.iloc[-1], status_code
-
-    def granularity_to_seconds(self, granularity):
-        granularity_to_seconds_dict = {
-            "S5": 5,
-            "S10": 10,
-            "S15": 15,
-            "S30": 30,
-            "M1": 60,
-            "M2": 120,
-            "M3": 180,
-            "M4": 240,
-            "M5": 300,
-            "M10": 600,
-            "M15": 900,
-            "M30": 1800,
-            "H1": 3600,
-            "H2": 7200,
-            "H3": 10800,
-            "H4": 14400,
-            "H6": 21600,
-            "H8": 28800,
-            "H12": 43200,
-            "D": 86400,
-            "W": 604800,
-            "M": 2592000,
-        }
-        return granularity_to_seconds_dict[granularity]
 
 
 bot = TradingBot(True, 5)
