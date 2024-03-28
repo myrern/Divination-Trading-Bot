@@ -112,19 +112,43 @@ class TradingBot:
     def go_long(self, strategy):
         instrument = strategy["asset"]
         units = strategy["units"]
+        last_trade = strategy["last_trade"]
+
+        # Go netrual if current position is short
+        if strategy["current_position"] == -1:
+            self.go_netrual(strategy)
+
         status_code, trade = self.oanda.long_asset(instrument, units)
+        if status_code != 201:
+            print(f"Failed to open long trade, status code: {status_code}")
+            return
+        
         strategy["current_position"] = 1
         strategy["last_trade"] = trade
 
     def go_short(self, strategy):
         instrument = strategy["asset"]
         units = strategy["units"]
-        self.oanda.short_asset(instrument, units)
+        last_trade = strategy["last_trade"]
+
+        # Go netrual if current position is long
+        if strategy["current_position"] == 1:
+            self.go_netrual(strategy)
+
+        status_code, trade = self.oanda.short_asset(instrument, units)
+        if status_code != 201:
+            print(f"Failed to open short trade, status code: {status_code}")
+            return
+        
         strategy["current_position"] = -1
+        strategy["last_trade"] = trade
 
     def go_netrual(self, strategy):
         last_trade = strategy["last_trade"]
         status_code, trade = self.oanda.close_trade_fully(last_trade)
+        if status_code != 200:
+            print(f"Failed to close trade, status code: {status_code}")
+            return
         strategy["current_position"] = 0
         strategy["last_trade"] = trade
         strategy["trade_history"].append(trade)

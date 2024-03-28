@@ -23,13 +23,20 @@ class Strategies:
         candles["Position"] = np.where(
             candles["IBS"] < ibs_low_threshold,
             1,
-            np.where(candles["IBS"] > ibs_high_threshold, 0, 0),
+            np.where(candles["IBS"] > ibs_high_threshold, -1, 0),
         )
         new_position = candles["Position"].iloc[-1]
+        print("-----------------------------")
+        print("IBS Signal: ", new_position)
+        print("-----------------------------")
 
         if new_position == 1 and current_position == 0:
             return 1
+        elif new_position == 1 and current_position == -1:
+            return 1
         elif new_position == -1 and current_position == 0:
+            return -1
+        elif new_position == -1 and current_position == 1:
             return -1
         elif new_position == 0 and current_position == 1:
             return 0

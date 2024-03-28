@@ -96,9 +96,10 @@ class Oanda:
         last_trade.close_trade(closed_time, closed_time, realized_pl)
         print(f"Trade closed:\n{last_trade.to_string_closed()}")
         print("----------------------------------------")
-        return 201, last_trade
+        return 200, last_trade
 
     def long_asset(self, instrument, units):
+            
         buy_order_url = f"{self.oanda_base_url}accounts/{self.account_id}/orders"
         headers = {
             "Authorization": self.oanda_authorization,
@@ -206,6 +207,8 @@ class Oanda:
         }
 
         try:
+            print("----------------------------------------")
+            print(f"Going short {units} units of {instrument}...")
             response = requests.post(
                 short_order_url,
                 headers=headers,
@@ -215,16 +218,51 @@ class Oanda:
             # check status code
             status_code = response.status_code
             if status_code == 400:
-                logging.error(f"Order specification was invalid: {response.json()}")
-                return pd.DataFrame(), 400
+                print(f"Order specification was invalid: {response.json()}")
+                print("----------------------------------------")
+                return 400, None
             elif status_code == 404:
-                logging.error(f"Order specification does not exist: {response.json()}")
-                return pd.DataFrame(), 404
+                print(f"Order specification does not exist: {response.json()}")
+                print("----------------------------------------")
+                return 404, None
             else:
-                logging.error(f"Error shorting asset: {e}")
-                return pd.DataFrame(), 500
+                print(f"Error shorting asset: {e}")
+                print("----------------------------------------")
+                return 500, None
 
-        return response.status_code, response.json()
+        response = response.json()
+
+        # Check if 'orderFillTransaction' is in the response
+        if "orderFillTransaction" in response:
+            order_fill = response["orderFillTransaction"]
+            trade_opened = order_fill["tradeOpened"]
+            trade_id = trade_opened["tradeID"]
+            price = trade_opened["price"]
+            actual_units = trade_opened["units"]
+
+            trade = Trade(trade_id, price, actual_units, instrument, "short")
+            print(f"Trade opened:\n{trade.to_string_opened()}")
+            print("----------------------------------------")
+            return 201, trade
+        else:
+            tries = 0
+            while tries < 10:
+                print("Waiting for order to fill...")
+                orderCreateTransaction = response["orderCreateTransaction"]
+                id = orderCreateTransaction["id"]
+                # get order
+                order = self.get_single_order(id)
+                if order["order"]["state"] == "FILLED":
+                    transaction_id = order["lastTransactionID"]
+                    trade_opened = order["order"]["createTime"]
+                    price = order["order"]["price"]
+                    units = order["order"]["units"]
+                    trade = Trade(
+                        transaction_id, trade_opened, price, units, instrument, "short"
+                    )
+                    return 201, trade
+                tries += 1
+                time.sleep(1)
 
     def get_single_order(self, order_id):
         headers = {
