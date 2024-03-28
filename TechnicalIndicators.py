@@ -19,7 +19,7 @@ class TechnicalIndicators:
         signal_line = macd.ewm(span=signal, adjust=False).mean()
         return macd, signal_line
 
-    def RSI(self, period=14, column="Close"):
+    def RSI(self, period=14, column="mid_c"):
         delta = self.df[column].diff(1)
         gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()

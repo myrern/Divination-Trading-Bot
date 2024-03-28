@@ -157,7 +157,6 @@ class Oanda:
             return response.status_code, None
 
         response = response.json()
-
         # Check if 'orderFillTransaction' is in the response
         if "orderFillTransaction" in response:
             order_fill = response["orderFillTransaction"]

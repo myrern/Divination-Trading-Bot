@@ -5,45 +5,25 @@ import pandas as pd
 from Oanda import Oanda
 from Strategies import Strategies
 from Trade import Trade
+import multiprocessing
 
 logging.basicConfig(level=logging.INFO)
 
-
 class TradingBot:
-    def __init__(self, practice, count):
-        self.practice = practice
-        self.count = count
-        self.strategies = Strategies()
-        self.oanda = Oanda(practice)
+    def __init__(self, practice, count, strategy):
+            self.practice = practice
+            self.count = count
+            self.strategy = strategy
+            self.strategies = Strategies()
+            self.oanda = Oanda(practice)
+            self.account_id = "101-004-25172303-001"
+            self.oanda_authorization = "Bearer 355e3f854bfe5cd14c1ae71e71cb723e-b1bdecc6d4a9ac5023b66104c9f48863"
+            self.oanda_base_url = "https://api-fxpractice.oanda.com/v3/"
 
-        self.account_id = "101-004-25172303-001"
-        self.oanda_authorization = (
-            "Bearer 355e3f854bfe5cd14c1ae71e71cb723e-b1bdecc6d4a9ac5023b66104c9f48863"
-        )
-        self.oanda_base_url = "https://api-fxpractice.oanda.com/v3/"
-        self.strategies_list = [
-            {
-                "strategy_name": "IBS",
-                "current_position": 0,
-                "asset": "NAS100_USD",
-                "units": 1,
-                "last_trade": None,
-                "trade_history": [],
-                "ibs_low_threshold": 0.2,
-                "ibs_high_threshold": 0.8,
-                "granularity": "M1",
-            }
-        ]
-
-        self.run_bot()
+            self.run_bot()
 
     def run_bot(self):
-        #############################
-        # Her skal flere instanser av run_bot kjøres for forskjellige strategier
-        # I v1 kjører vi bare en strategi
-        #############################
-
-        current_strategy = self.strategies_list[0]
+        current_strategy = self.strategy
         self.instrument = current_strategy["asset"]
         self.granularity = current_strategy["granularity"]
 
@@ -96,18 +76,18 @@ class TradingBot:
 
     def check_for_trade(self, candles):
         # Implement your trade logic here
-        for strategy in self.strategies_list:
-            signal = self.strategies.get_signal(strategy, candles)
-            last_trade = strategy["last_trade"]
-            if signal == 1:
-                self.go_long(strategy)
-            elif signal == -1:
-                self.go_short(strategy)
-            elif signal == 0:
-                self.go_netrual(strategy)
-            else:
-                print(f"No trade signal for {strategy['asset']}")
-                continue
+        strategy = self.strategy
+        signal = self.strategies.get_signal(strategy, candles)
+        last_trade = strategy["last_trade"]
+        if signal == 1:
+            self.go_long(strategy)
+        elif signal == -1:
+            self.go_short(strategy)
+        elif signal == 0:
+            self.go_netrual(strategy)
+        else:
+            print(f"No trade signal for {strategy['asset']}")
+            print("-----------------------------")
 
     def go_long(self, strategy):
         instrument = strategy["asset"]
@@ -234,4 +214,41 @@ class TradingBot:
             return candle.iloc[-1], status_code
 
 
-bot = TradingBot(True, 5)
+def start_bot_for_strategy(strategy):
+    bot = TradingBot(True, 5, strategy)
+
+if __name__ == '__main__':
+    strategies_list = [
+        {
+            "strategy_name": "IBS",
+            "current_position": 0,
+            "asset": "NAS100_USD",
+            "units": 1,
+            "last_trade": None,
+            "trade_history": [],
+            "ibs_low_threshold": 0.2,
+            "ibs_high_threshold": 0.8,
+            "granularity": "M1",
+        },
+        {
+            "strategy_name": "RSI",
+            "current_position": 0,
+            "asset": "EUR_USD",
+            "units": 1,
+            "last_trade": None,
+            "trade_history": [],
+            "rsi_low_threshold": 30,
+            "rsi_high_threshold": 70,
+            "granularity": "M1",
+        },
+        # Add more strategies here
+    ]
+
+    processes = []
+    for strategy in strategies_list:
+        p = multiprocessing.Process(target=start_bot_for_strategy, args=(strategy,))
+        processes.append(p)
+        p.start()
+
+    for p in processes:
+        p.join()  # Wait for all processes to complete

@@ -8,8 +8,42 @@ class Strategies:
     def get_signal(self, strategy, candles):
         if strategy["strategy_name"] == "IBS":
             return self.IBS(strategy, candles)
-        elif strategy.strategy_name == "RSI":
-            return self.RSI()
+        elif strategy["strategy_name"] == "RSI":
+            return self.RSI(strategy, candles)
+    
+    def RSI(self, strategy, candles):
+        technical_indicators = TechnicalIndicators(candles)
+        rsi_low_threshold = strategy["rsi_low_threshold"]
+        rsi_high_threshold = strategy["rsi_high_threshold"]
+        current_position = strategy["current_position"]
+
+        candles["RSI"] = technical_indicators.RSI()
+
+        # Calculate the RSI signal
+        candles["Position"] = np.where(
+            candles["RSI"] < rsi_low_threshold,
+            1,
+            np.where(candles["RSI"] > rsi_high_threshold, -1, 0),
+        )
+        new_position = candles["Position"].iloc[-1]
+        print("-----------------------------")
+        print("RSI Signal: ", new_position)
+        print("-----------------------------")
+
+        if new_position == 1 and current_position == 0:
+            return 1
+        elif new_position == 1 and current_position == -1:
+            return 1
+        elif new_position == -1 and current_position == 0:
+            return -1
+        elif new_position == -1 and current_position == 1:
+            return -1
+        elif new_position == 0 and current_position == 1:
+            return 0
+        elif new_position == 0 and current_position == -1:
+            return 0
+        else:
+            99
 
     def IBS(self, strategy, candles):
         technical_indicators = TechnicalIndicators(candles)
