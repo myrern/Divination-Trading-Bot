@@ -1,11 +1,12 @@
 import logging
-import time
-from datetime import datetime, timezone
 import pandas as pd
 from Oanda import Oanda
 from Strategies import Strategies
 from Trade import Trade
 import multiprocessing
+import pytz
+from datetime import datetime, timedelta, time, timezone  # Import the time class explicitly from datetime
+import time as time_module
 
 logging.basicConfig(level=logging.INFO)
 
@@ -19,6 +20,9 @@ class TradingBot:
             self.account_id = "101-004-25172303-001"
             self.oanda_authorization = "Bearer 355e3f854bfe5cd14c1ae71e71cb723e-b1bdecc6d4a9ac5023b66104c9f48863"
             self.oanda_base_url = "https://api-fxpractice.oanda.com/v3/"
+            self.time_zone = pytz.timezone(strategy['time_zone'])
+            self.market_open = strategy['market_open']
+            self.market_close = strategy['market_close']
 
             self.run_bot()
 
@@ -26,53 +30,90 @@ class TradingBot:
         current_strategy = self.strategy
         self.instrument = current_strategy["asset"]
         self.granularity = current_strategy["granularity"]
-
         self.check_for_open_trades(current_strategy)
 
         while True:
-            print("Fetching latest candle...")
-            candles, status_code = self.get_candles(
-                self.instrument, self.granularity, self.count
-            )
+            if self.is_market_open():
+                print("Fetching latest candle for " + self.instrument + "...")
+                candles, status_code = self.get_candles(self.instrument, self.granularity, self.count)
 
-            if status_code != 200 or candles.empty:
-                logging.error(f"Error getting candles: {status_code}")
-                time.sleep(60)  # Wait a minute before retrying
-                continue
-
-            last_candle_time = candles.index[-1]
-            wait_time = self.calculate_wait_time(last_candle_time)
-            print(f"Waiting for {wait_time} seconds before starting constant checks.")
-            time.sleep(wait_time)
-
-            print("Entering constant checking phase. Checking for a new candle...")
-            start_check_time = datetime.now(timezone.utc)
-            while (datetime.now(timezone.utc) - start_check_time).total_seconds() <= 30:
-                print("Checking for new candle now...")
-                last_complete_candle, status_code = self.get_candles(
-                    self.instrument, self.granularity, 1
-                )
-                if status_code != 200 or last_complete_candle.empty:
-                    time.sleep(1)
+                if status_code != 200 or candles.empty:
+                    logging.error(f"Error getting candles: {status_code}")
+                    time_module.sleep(60)  # Wait a minute before retrying
                     continue
 
-                new_candle_time = pd.to_datetime(last_complete_candle.index)
-                if new_candle_time != pd.to_datetime(last_candle_time):
-                    closing_price = last_complete_candle[
-                        "mid_c"
-                    ]  # Assuming you're interested in the mid closing price
-                    print(
-                        f"New candle detected at {new_candle_time}! Closing Price: {closing_price}"
-                    )
-                    # print(last_complete_candle)
-                    candles = candles._append(last_complete_candle, ignore_index=False)
-                    # check for trade
-                    self.check_for_trade(candles)
-                    # Process the new candle here (if any processing or decision-making is required)
-                    break  # Exit the inner loop since a new candle is detected
+                last_candle_time = candles.index[-1]
+                wait_time = self.calculate_wait_time(last_candle_time)
+                print(f"Waiting for {wait_time} seconds before starting constant checks for " + self.instrument + "...")
+                time_module.sleep(wait_time)
+
+                print("Entering constant checking phase. Checking for a new candle...")
+                start_check_time = datetime.now(timezone.utc)
+                check_counter = 0
+                while (datetime.now(timezone.utc) - start_check_time).total_seconds() <= 30:
+                    print("Checking for new candle now for " + self.instrument + "...")
+                    last_complete_candle, status_code = self.get_candles(self.instrument, self.granularity, 1)
+                    if status_code != 200 or last_complete_candle.empty:
+                        time_module.sleep(1)
+                        continue
+
+                    new_candle_time = pd.to_datetime(last_complete_candle.index)
+                    if new_candle_time != pd.to_datetime(last_candle_time):
+                        closing_price = last_complete_candle["mid_c"]
+                        print(f"New candle detected at {new_candle_time}! Closing Price: {closing_price} for " + self.instrument + "...")
+                        candles = candles._append(last_complete_candle, ignore_index=False)
+                        self.check_for_trade(candles)
+                        break  # Exit the inner loop since a new candle is detected
+
+                    check_counter += 1
+                    if check_counter % 10 == 0:
+                        time_module.sleep(2)  # Wait for 1 second after every 10 checks to avoid rate limiting
+                        print("Waiting for new candle..." + self.instrument + "...")
+            else:
+                sleep_duration = self.calculate_sleep_duration()
+                print(f"Market is closed. Sleeping for {sleep_duration} seconds until market opens.")
+                time_module.sleep(sleep_duration)
 
             print("Processing complete. Waiting for next cycle...")
             # After processing the new candle, the outer loop continues, fetching the next set of candles after a wait.
+    
+    def is_market_open(self):
+        ny_time_zone = pytz.timezone('America/New_York')
+        local_now = datetime.now(pytz.utc).astimezone(ny_time_zone)
+
+        market_open_time = time(17, 5)  # 17:05 NY time
+        market_close_time = time(16, 59)  # 16:59 NY time
+        
+        # Check if today is Sunday and time is past market open
+        if local_now.weekday() == 6 and local_now.time() >= market_open_time:
+            return True
+        # Check if today is Friday and time is before market close
+        elif local_now.weekday() == 4 and local_now.time() <= market_close_time:
+            return True
+        # From Monday to Thursday, market is considered always open
+        elif 0 <= local_now.weekday() < 4:
+            return True
+        # Covers the case for Saturday and Friday post-market close
+        return False
+
+    def calculate_sleep_duration(self):
+        ny_time_zone = pytz.timezone('America/New_York')
+        now = datetime.now(pytz.utc).astimezone(ny_time_zone)
+        market_open_time = time(17, 5)  # Sunday 17:05 NY time
+        
+        if now.weekday() >= 5:  # It's Friday after market close or any time on Saturday
+            next_open = now + timedelta(days=(6-now.weekday()) % 7)  # Next Sunday
+            next_open = next_open.replace(hour=market_open_time.hour, minute=market_open_time.minute, second=0, microsecond=0)
+            if next_open <= now:  # If it's already past the opening time, adjust to the next week
+                next_open += timedelta(days=7)
+        else:
+            # It's Sunday before the market opens
+            next_open = now.replace(hour=market_open_time.hour, minute=market_open_time.minute, second=0, microsecond=0)
+            if next_open <= now:
+                next_open += timedelta(days=1)  # Move to the next day
+        
+        sleep_duration = (next_open - now).total_seconds()
+        return max(0, sleep_duration)
 
     def check_for_trade(self, candles):
         # Implement your trade logic here
@@ -215,20 +256,23 @@ class TradingBot:
 
 
 def start_bot_for_strategy(strategy):
-    bot = TradingBot(True, 5, strategy)
+    bot = TradingBot(True, 20, strategy)
 
 if __name__ == '__main__':
     strategies_list = [
         {
             "strategy_name": "IBS",
             "current_position": 0,
-            "asset": "NAS100_USD",
+            "asset": "AUD_USD",
             "units": 1,
             "last_trade": None,
             "trade_history": [],
             "ibs_low_threshold": 0.2,
             "ibs_high_threshold": 0.8,
             "granularity": "M1",
+            "time_zone": "America/New_York",
+            "market_open": {"day": 6, "hour": 17, "minute": 5},  # Sunday 17:05 NY time
+            "market_close": {"day": 4, "hour": 16, "minute": 59},  # Friday 16:59 NY time
         },
         {
             "strategy_name": "RSI",
@@ -240,6 +284,9 @@ if __name__ == '__main__':
             "rsi_low_threshold": 30,
             "rsi_high_threshold": 70,
             "granularity": "M1",
+            "time_zone": "America/New_York",
+            "market_open": {"day": 6, "hour": 17, "minute": 5},  # Sunday 17:05 NY time
+            "market_close": {"day": 4, "hour": 16, "minute": 59},  # Friday 16:59 NY time
         },
         # Add more strategies here
     ]
