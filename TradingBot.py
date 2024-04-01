@@ -30,6 +30,7 @@ class TradingBot:
         current_strategy = self.strategy
         self.instrument = current_strategy["asset"]
         self.granularity = current_strategy["granularity"]
+        self.time_zone = current_strategy["time_zone"]
         self.check_for_open_trades(current_strategy)
 
         while True:
@@ -78,7 +79,7 @@ class TradingBot:
             # After processing the new candle, the outer loop continues, fetching the next set of candles after a wait.
     
     def is_market_open(self):
-        ny_time_zone = pytz.timezone('America/New_York')
+        ny_time_zone = pytz.timezone(self.time_zone)
         local_now = datetime.now(pytz.utc).astimezone(ny_time_zone)
 
         market_open_time = time(17, 5)  # 17:05 NY time
@@ -97,7 +98,7 @@ class TradingBot:
         return False
 
     def calculate_sleep_duration(self):
-        ny_time_zone = pytz.timezone('America/New_York')
+        ny_time_zone = pytz.timezone(self.time_zone)
         now = datetime.now(pytz.utc).astimezone(ny_time_zone)
         market_open_time = time(17, 5)  # Sunday 17:05 NY time
         
@@ -269,7 +270,7 @@ if __name__ == '__main__':
             "trade_history": [],
             "ibs_low_threshold": 0.2,
             "ibs_high_threshold": 0.8,
-            "granularity": "M1",
+            "granularity": "M5",
             "time_zone": "America/New_York",
             "market_open": {"day": 6, "hour": 17, "minute": 5},  # Sunday 17:05 NY time
             "market_close": {"day": 4, "hour": 16, "minute": 59},  # Friday 16:59 NY time
@@ -288,6 +289,21 @@ if __name__ == '__main__':
             "market_open": {"day": 6, "hour": 17, "minute": 5},  # Sunday 17:05 NY time
             "market_close": {"day": 4, "hour": 16, "minute": 59},  # Friday 16:59 NY time
         },
+        {
+            "strategy_name": "IBS",
+            "current_position": 0,
+            "asset": "NAS100_USD",
+            "units": 0.1,
+            "last_trade": None,
+            "trade_history": [],
+            "ibs_low_threshold": 0.2,
+            "ibs_high_threshold": 0.8,
+            "granularity": "H1",
+            "time_zone": "America/Chicago",
+            "market_open": {"day": 6, "hour": 17, "minute": 1},  # Sunday 17:01 Chicago time
+            "market_close": {"day": 4, "hour": 15, "minute": 59},  # Friday 15:59 Chicago time
+
+        }
         # Add more strategies here
     ]
 
