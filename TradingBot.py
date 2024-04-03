@@ -302,7 +302,20 @@ if __name__ == '__main__':
             "time_zone": "America/Chicago",
             "market_open": {"day": 6, "hour": 17, "minute": 1},  # Sunday 17:01 Chicago time
             "market_close": {"day": 4, "hour": 15, "minute": 59},  # Friday 15:59 Chicago time
-
+        },
+        {
+            "strategy_name": "IBS",
+            "current_position": 0,
+            "asset": "SPX500_USD",
+            "units": 0.1,
+            "last_trade": None,
+            "trade_history": [],
+            "ibs_low_threshold": 0.2,
+            "ibs_high_threshold": 0.8,
+            "granularity": "D",
+            "time_zone": "America/Chicago",
+            "market_open": {"day": 6, "hour": 17, "minute": 1},  # Sunday 17:01 Chicago time
+            "market_close": {"day": 4, "hour": 15, "minute": 59},  # Friday 15:59 Chicago time
         }
         # Add more strategies here
     ]
