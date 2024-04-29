@@ -17,8 +17,7 @@ class TradingBot:
             self.strategy = strategy
             self.strategies = Strategies()
             self.oanda = Oanda(practice)
-            self.account_id = "101-004-25172303-001"
-            self.oanda_authorization = "Bearer 355e3f854bfe5cd14c1ae71e71cb723e-b1bdecc6d4a9ac5023b66104c9f48863"
+
             self.oanda_base_url = "https://api-fxpractice.oanda.com/v3/"
             self.time_zone = pytz.timezone(strategy['time_zone'])
             self.market_open = strategy['market_open']
