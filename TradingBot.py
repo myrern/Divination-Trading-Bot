@@ -256,54 +256,40 @@ class TradingBot:
 
 
 def start_bot_for_strategy(strategy):
-    bot = TradingBot(True, 20, strategy)
+    bot = TradingBot(True, 50, strategy)
 
 if __name__ == '__main__':
     strategies_list = [
+        #{
+           # "strategy_name": "IBS",
+           # "current_position": 0,
+           # "asset": "AUD_USD",
+           # "units": 50,
+           # "last_trade": None,
+           # "trade_history": [],
+           # "ibs_low_threshold": 0.2,
+           # "ibs_high_threshold": 0.8,
+           # "granularity": "M5",
+           # "time_zone": "America/New_York",
+          #  "market_open": {"day": 6, "hour": 17, "minute": 5},  # Sunday 17:05 NY time
+         #   "market_close": {"day": 4, "hour": 16, "minute": 59},  # Friday 16:59 NY time
+        #},
+        #{
+         #   "strategy_name": "RSI",
+          #  "current_position": 0,
+           # "asset": "EUR_USD",
+            #"units": 50,
+            #"last_trade": None,
+            #"trade_history": [],
+            #"rsi_low_threshold": 30,
+            #"rsi_high_threshold": 70,
+            #"granularity": "M1",
+            #"time_zone": "America/New_York",
+            #"market_open": {"day": 6, "hour": 17, "minute": 5},  # Sunday 17:05 NY time
+            #"market_close": {"day": 4, "hour": 16, "minute": 59},  # Friday 16:59 NY time
+        #},
         {
-            "strategy_name": "IBS",
-            "current_position": 0,
-            "asset": "AUD_USD",
-            "units": 50,
-            "last_trade": None,
-            "trade_history": [],
-            "ibs_low_threshold": 0.2,
-            "ibs_high_threshold": 0.8,
-            "granularity": "M5",
-            "time_zone": "America/New_York",
-            "market_open": {"day": 6, "hour": 17, "minute": 5},  # Sunday 17:05 NY time
-            "market_close": {"day": 4, "hour": 16, "minute": 59},  # Friday 16:59 NY time
-        },
-        {
-            "strategy_name": "RSI",
-            "current_position": 0,
-            "asset": "EUR_USD",
-            "units": 50,
-            "last_trade": None,
-            "trade_history": [],
-            "rsi_low_threshold": 30,
-            "rsi_high_threshold": 70,
-            "granularity": "M1",
-            "time_zone": "America/New_York",
-            "market_open": {"day": 6, "hour": 17, "minute": 5},  # Sunday 17:05 NY time
-            "market_close": {"day": 4, "hour": 16, "minute": 59},  # Friday 16:59 NY time
-        },
-        {
-            "strategy_name": "IBS",
-            "current_position": 0,
-            "asset": "NAS100_USD",
-            "units": 0.1,
-            "last_trade": None,
-            "trade_history": [],
-            "ibs_low_threshold": 0.2,
-            "ibs_high_threshold": 0.8,
-            "granularity": "H1",
-            "time_zone": "America/Chicago",
-            "market_open": {"day": 6, "hour": 17, "minute": 1},  # Sunday 17:01 Chicago time
-            "market_close": {"day": 4, "hour": 15, "minute": 59},  # Friday 15:59 Chicago time
-        },
-        {
-            "strategy_name": "IBS",
+            "strategy_name": "IBS_ATR",
             "current_position": 0,
             "asset": "SPX500_USD",
             "units": 0.1,
@@ -316,6 +302,20 @@ if __name__ == '__main__':
             "market_open": {"day": 6, "hour": 17, "minute": 1},  # Sunday 17:01 Chicago time
             "market_close": {"day": 4, "hour": 15, "minute": 59},  # Friday 15:59 Chicago time
         }
+        #{
+         #   "strategy_name": "IBS",
+          #  "current_position": 0,
+           # "asset": "SPX500_USD",
+            #"units": 0.1,
+            #"last_trade": None,
+            #"trade_history": [],
+            #"ibs_low_threshold": 0.2,
+            #"ibs_high_threshold": 0.8,
+            #"granularity": "D",
+            #"time_zone": "America/Chicago",
+            #"market_open": {"day": 6, "hour": 17, "minute": 1},  # Sunday 17:01 Chicago time
+            #"market_close": {"day": 4, "hour": 15, "minute": 59},  # Friday 15:59 Chicago time
+        #}
         # Add more strategies here
     ]
 
